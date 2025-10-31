@@ -1,0 +1,40 @@
+  - name: "Brute Force Attempt Detected"
+    description: "Detects more than 50 failed login attempts from a single source IP in 5 minutes."
+    search: |
+      index=network sourcetype=firewall eventtype=auth_failed 
+      | stats count by src_ip, dest_ip 
+      | where count > 50 
+      | eval alert_name="Brute Force Attempt Detected"
+    cron_schedule: "*/5 * * * *"
+    earliest_time: "-5m@m"
+    latest_time: "now"
+    enable: true
+    severity: high
+    mitre_technique_id: T1110
+    mitre_tactic_id: TA0001
+    alert_action:
+      notable:
+        rule_title: "Brute Force Attempt from %{src_ip} to %{dest_ip}"
+        rule_description: "Over 50 failed login attempts detected."
+        nes_fields: src_ip,dest_ip,count
+
+  - name: "Outbound Traffic to Known Malicious IP"
+    description: "Detects outbound connections to IPs in the malicious_ips lookup."
+    search: |
+      index=network sourcetype=proxy OR sourcetype=firewall direction=outgoing 
+      | lookup malicious_ips ip AS dest_ip OUTPUT malicious 
+      | where isnotnull(malicious) 
+      | stats count, values(url) as urls by src_ip, dest_ip 
+      | eval alert_name="Outbound to Malicious IP"
+    cron_schedule: "*/10 * * * *"
+    earliest_time: "-10m@m"
+    latest_time: "now"
+    enable: true
+    severity: critical
+    mitre_technique_id: T1071
+    mitre_tactic_id: TA0011
+    alert_action:
+      notable:
+        rule_title: "C2 Traffic: %{src_ip} to %{dest_ip}"
+        rule_description: "Outbound connection to known malicious IP."
+        nes_fields: src_ip,dest_ip,urls
