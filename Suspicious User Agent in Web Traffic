@@ -1,0 +1,38 @@
+  - name: "Suspicious User Agent in Web Traffic"
+    description: "Matches web traffic against known malicious or scanner user agents."
+    search: |
+      index=web sourcetype=access_log 
+      | lookup suspicious_useragents useragent OUTPUT is_suspicious 
+      | where is_suspicious=1 
+      | stats count by src_ip, useragent 
+      | eval alert_name="Suspicious User Agent"
+    cron_schedule: "*/5 * * * *"
+    earliest_time: "-5m@m"
+    latest_time: "now"
+    enable: true
+    severity: medium
+    alert_action:
+      notable:
+        rule_title: "Malicious UA: %{useragent}"
+        rule_description: "Suspicious user agent from %{src_ip}."
+        nes_fields: src_ip,useragent,count
+
+  - name: "Internal to External RDP Connection"
+    description: "Detects internal hosts initiating RDP (3389) to external IPs."
+    search: |
+      index=network sourcetype=firewall dest_port=3389 direction=outgoing 
+      | stats count by src_ip, dest_ip 
+      | where count > 5 
+      | eval alert_name="Internal to External RDP"
+    cron_schedule: "*/10 * * * *"
+    earliest_time: "-10m@m"
+    latest_time: "now"
+    enable: true
+    severity: high
+    mitre_technique_id: T1021
+    mitre_tactic_id: TA0008
+    alert_action:
+      notable:
+        rule_title: "RDP Outbound: %{src_ip} to %{dest_ip}"
+        rule_description: "Possible lateral movement or exfil."
+        nes_fields: src_ip,dest_ip,count
