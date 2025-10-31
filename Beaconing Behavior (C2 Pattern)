@@ -1,0 +1,40 @@
+  - name: "Beaconing Behavior (C2 Pattern)"
+    description: "Detects consistent, high-variance connection intervals indicative of beaconing."
+    search: |
+      index=proxy OR index=firewall direction=outgoing 
+      | bin _time span=1m 
+      | stats count by src_ip, dest_ip, _time 
+      | eventstats avg(count) as avg_count, stdev(count) as std_count by src_ip, dest_ip 
+      | where count > (avg_count + 2*std_count) AND count > 3 
+      | eval alert_name="Beaconing Behavior"
+    cron_schedule: "0 * * * *"
+    earliest_time: "-60m@m"
+    latest_time: "now"
+    enable: true
+    severity: high
+    mitre_technique_id: T1071
+    mitre_tactic_id: TA0011
+    alert_action:
+      notable:
+        rule_title: "Beaconing: %{src_ip} to %{dest_ip}"
+        rule_description: "Irregular high-frequency outbound pattern."
+        nes_fields: src_ip,dest_ip,count,avg_count,std_count
+
+  - name: "Traffic to Tor Exit Node"
+    description: "Detects internal hosts communicating with known Tor exit nodes."
+    search: |
+      index=network (sourcetype=proxy OR sourcetype=firewall) 
+      | lookup tor_exit_nodes ip AS dest_ip OUTPUT is_tor 
+      | where is_tor=1 
+      | stats count, values(url) as urls by src_ip, dest_ip 
+      | eval alert_name="Traffic to Tor Exit Node"
+    cron_schedule: "*/30 * * * *"
+    earliest_time: "-30m@m"
+    latest_time: "now"
+    enable: true
+    severity: medium
+    alert_action:
+      notable:
+        rule_title: "Tor Traffic: %{src_ip} to %{dest_ip}"
+        rule_description: "Connection to known Tor exit node."
+        nes_fields: src_ip,dest_ip,urls
