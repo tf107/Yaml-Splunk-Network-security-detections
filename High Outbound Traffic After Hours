@@ -1,0 +1,39 @@
+  - name: "High Outbound Traffic After Hours"
+    description: "Detects >100MB outbound from a host between 00:00–06:00."
+    search: |
+      index=network 
+      | eval hour=strftime(_time, "%H") 
+      | where hour >= 0 AND hour <= 6 
+      | stats sum(bytes_out) as total_out by src_ip 
+      | where total_out > 100000000 
+      | eval alert_name="High Outbound After Hours"
+    cron_schedule: "0 * * * *"
+    earliest_time: "-24h@h"
+    latest_time: "now"
+    enable: true
+    severity: medium
+    alert_action:
+      notable:
+        rule_title: "After-Hours Exfil: %{src_ip}"
+        rule_description: "%{total_out} bytes sent outside business hours."
+        nes_fields: src_ip,total_out
+
+  - name: "External SMB Connections (445/139)"
+    description: "Detects internal hosts connecting to external SMB services."
+    search: |
+      index=network (dest_port=445 OR dest_port=139) direction=outgoing 
+      | stats count, values(dest_ip) as external_ips by src_ip 
+      | where count > 3 
+      | eval alert_name="External SMB Connections"
+    cron_schedule: "*/15 * * * *"
+    earliest_time: "-15m@m"
+    latest_time: "now"
+    enable: true
+    severity: critical
+    mitre_technique_id: T1021.002
+    mitre_tactic_id: TA0008
+    alert_action:
+      notable:
+        rule_title: "SMB Outbound: %{src_ip}"
+        rule_description: "Connected to %{count} external SMB servers."
+        nes_fields: src_ip,external_ips,count
