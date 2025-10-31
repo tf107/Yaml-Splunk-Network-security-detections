@@ -1,0 +1,39 @@
+  - name: "Possible DNS Tunneling"
+    description: "Detects DNS queries with unusually large payload (>10KB per query domain)."
+    search: |
+      index=network sourcetype=dns 
+      | stats sum(query_length) as total_bytes by src_ip, query 
+      | where total_bytes > 10000 
+      | eval alert_name="Possible DNS Tunneling"
+    cron_schedule: "*/15 * * * *"
+    earliest_time: "-15m@m"
+    latest_time: "now"
+    enable: true
+    severity: high
+    mitre_technique_id: T1048
+    mitre_tactic_id: TA0010
+    alert_action:
+      notable:
+        rule_title: "DNS Exfil: %{src_ip} to %{query}"
+        rule_description: "Large DNS payload detected."
+        nes_fields: src_ip,query,total_bytes
+
+  - name: "Port Scan Detected"
+    description: "Detects a source IP scanning more than 100 unique destination ports in 10 minutes."
+    search: |
+      index=network sourcetype=firewall action=denied 
+      | stats dc(dest_port) as unique_ports by src_ip 
+      | where unique_ports > 100 
+      | eval alert_name="Port Scan Detected"
+    cron_schedule: "*/10 * * * *"
+    earliest_time: "-10m@m"
+    latest_time: "now"
+    enable: true
+    severity: medium
+    mitre_technique_id: T1595
+    mitre_tactic_id: TA0043
+    alert_action:
+      notable:
+        rule_title: "Port Scan from %{src_ip}"
+        rule_description: "Scanned %{unique_ports} ports."
+        nes_fields: src_ip,unique_ports
